@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// User model - משתמשים (אמנים וצופים)
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  firstName   String?
+  lastName    String?
+  bio         String?
+  avatar      String?
+  role        Role     @default(VIEWER)
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  artworks    Artwork[]
+  favorites   Favorite[]
+  comments    Comment[]
+  following   Follow[] @relation("Follower")
+  followers   Follow[] @relation("Following")
+
+  @@map("users")
+}
+
+// Artwork model - ציורים
+model Artwork {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String
+  thumbnailUrl String?
+  medium      String?  // סוג הציור (שמן, אקריליק, עפרון וכו')
+  dimensions  String?  // מידות הציור
+  year        Int?     // שנת יצירה
+  price       Float?   // מחיר (אם למכירה)
+  isForSale   Boolean  @default(false)
+  isPublic    Boolean  @default(true)
+  tags        String?  // תגיות לחיפוש (מופרדות בפסיקים)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  artistId    String
+  artist      User       @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  favorites   Favorite[]
+  comments    Comment[]
+
+  @@map("artworks")
+}
+
+// Category model - קטגוריות ציורים
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  color       String?   // צבע לתצוגה
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  artworks    Artwork[]
+
+  @@map("categories")
+}
+
+// Favorite model - ציורים מועדפים
+model Favorite {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artworkId String
+  artwork   Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artworkId])
+  @@map("favorites")
+}
+
+// Comment model - תגובות על ציורים
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artworkId String
+  artwork   Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+// Follow model - מעקב אחרי אמנים
+model Follow {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Relations
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+// Enums
+enum Role {
+  ADMIN
+  ARTIST
+  VIEWER
+}
