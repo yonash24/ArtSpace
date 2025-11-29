@@ -1,80 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
+// app/api/auth/register/route.ts
 
-const registerSchema = z.object({
-  email: z.string().email('כתובת אימייל לא תקינה'),
-  username: z.string().min(3, 'שם משתמש חייב להכיל לפחות 3 תווים'),
-  password: z.string().min(6, 'סיסמה חייבת להכיל לפחות 6 תווים'),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  role: z.enum(['ARTIST', 'VIEWER']).default('VIEWER')
-})
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase'; // ייבוא לקוח Supabase המוגדר
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const validatedData = registerSchema.parse(body)
+export async function POST(req:NextRequest) {
+    try{
+        const { email, password, username, firstName, lastName, role } = await req.json();
+    
+        // 3. בדיקת תקינות מינימלית
+        if (!email || !password || !username) {
+            return NextResponse.json({ error: 'חסרים פרטים חיוניים' }, { status: 400 });
+        }
 
-    // בדיקה אם המשתמש כבר קיים
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: validatedData.email },
-          { username: validatedData.username }
-        ]
-      }
-    })
+        const {data: authData, error: authError} = await.supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { // נתונים אופציונליים שיישמרו בפרופיל המשתמש (metadata)
+                    username,
+                    first_name: firstName,
+                    last_name: lastName,
+                    role: role || 'VIEWER' // לוודא שיש role ברירת מחדל
+                }
+            }
+        });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'משתמש עם אימייל או שם משתמש זה כבר קיים' },
-        { status: 400 }
-      )
+      return NextResponse.json({ 
+            message: 'הרשמה בוצעה בהצלחה! אנא אשר את המייל.',
+            user: authData.user?.id // החזרת ID המשתמש (אופציונלי)
+        }, { status: 200 });
     }
-
-    // הצפנת הסיסמה
-    const hashedPassword = await bcrypt.hash(validatedData.password, 12)
-
-    // יצירת המשתמש החדש
-    const user = await prisma.user.create({
-      data: {
-        email: validatedData.email,
-        username: validatedData.username,
-        password: hashedPassword,
-        firstName: validatedData.firstName,
-        lastName: validatedData.lastName,
-        role: validatedData.role
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true
-      }
-    })
-
-    return NextResponse.json({
-      message: 'משתמש נרשם בהצלחה',
-      user
-    }, { status: 201 })
-
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'נתונים לא תקינים', details: error.errors },
-        { status: 400 }
-      )
+    catch (error){
+      // טיפול בשגיאות שרת פנימיות
+        console.error('API Registration Error:', error);
+        return NextResponse.json({ error: 'שגיאה פנימית בשרת' }, { status: 500 });
     }
-
-    console.error('Registration error:', error)
-    return NextResponse.json(
-      { error: 'שגיאה פנימית בשרת' },
-      { status: 500 }
-    )
-  }
 }
