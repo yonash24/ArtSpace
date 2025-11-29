@@ -54,6 +54,13 @@ export function Navbar() {
             >
               קטגוריות
             </Link>
+
+            <Link
+              href="/about"
+              className="text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                על האומן
+              </Link>
             
             {/* חיפוש */}
             <div className="relative">
